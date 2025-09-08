@@ -15,7 +15,6 @@ ehthumbs.db
 Thumbs.db
 
 # Environment files (keep examples, ignore actual .env files)
-.env
 !.env.example
 
 # Logs and temporary files
