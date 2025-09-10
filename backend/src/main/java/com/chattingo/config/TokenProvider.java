@@ -11,12 +11,34 @@ import org.springframework.stereotype.Service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.io.Decoders;
 import io.github.cdimascio.dotenv.Dotenv;
 
 @Service
 public class TokenProvider {
 
     private final SecretKey key;
+
+    private static SecretKey buildKeyFromSecret(String providedSecret) {
+        if (providedSecret == null) {
+            throw new IllegalStateException("JWT secret is not set. Provide env JWT_SECRET (>= 256 bits). ");
+        }
+
+        byte[] keyBytes;
+
+        if (providedSecret.startsWith("base64:") || providedSecret.startsWith("BASE64:")) {
+            keyBytes = Decoders.BASE64.decode(providedSecret.substring(7));
+        } else {
+            keyBytes = providedSecret.getBytes();
+        }
+
+        if (keyBytes.length < 32) { // 256 bits
+            throw new IllegalStateException(
+                "JWT secret too weak (" + (keyBytes.length * 8) + " bits). Provide >= 256-bit secret.");
+        }
+
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
 
     public TokenProvider(@Value("${jwt.secret}") String jwtSecret) {
         // Load .env file if JWT_SECRET is not set or is the default value
@@ -43,8 +65,8 @@ public class TokenProvider {
             }
         }
         
-        System.out.println("TokenProvider: Using JWT secret length: " + actualJwtSecret.getBytes().length * 8 + " bits");
-        this.key = Keys.hmacShaKeyFor(actualJwtSecret.getBytes());
+        System.out.println("TokenProvider: Using JWT secret length: " + (actualJwtSecret != null ? actualJwtSecret.getBytes().length * 8 : 0) + " bits");
+        this.key = buildKeyFromSecret(actualJwtSecret);
     }
 
     public String generateToken(Authentication authentication) {
