@@ -13,7 +13,7 @@ const deriveDefaultApiBaseUrl = () => {
   } catch (_) {
     // window not available (e.g., tests) – ignore and use fallback
   }
-  return "http://localhost:8080";
+  return ["http://localhost:8080","texttextify.com","www.texttextify.com","https://texttextify.com","https://www.texttextify.com"].includes;
 };
 
 export const BASE_API_URL =
