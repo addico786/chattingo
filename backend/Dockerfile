@@ -14,5 +14,5 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
 ENTRYPOINT ["java"]
-
+   
 CMD [ "-jar", "app.jar" ]       
