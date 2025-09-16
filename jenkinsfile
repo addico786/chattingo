@@ -18,7 +18,7 @@ pipeline {
             }
         }
         stage("installing trivy"){
-            steps{
+            steps{ 
                 echo "installing trivy" 
                 sh """
                     curl -LO https://raw.githubusercontent.com/addico786/tools_download_scripts/master/trivy.sh
