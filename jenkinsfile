@@ -1,0 +1,113 @@
+@Library('book') _
+pipeline {
+    agent { label "slave" }
+    
+    environment {
+        JWT_SECRET= credentials('jwt_secret')
+    }
+    stages {
+        stage("installing docker") {
+            steps {
+                echo "installing docker"
+                sh """
+                    curl -LO https://raw.githubusercontent.com/addico786/tools_download_scripts/master/docker.sh
+                    sudo chmod +x docker.sh
+                    ./docker.sh
+                """
+                echo "docker installed"
+            }
+        }
+        stage("installing trivy"){
+            steps{
+                echo "installing trivy"
+                sh """
+                    curl -LO https://raw.githubusercontent.com/addico786/tools_download_scripts/master/trivy.sh
+                    sudo chmod +x trivy.sh
+                    ./trivy.sh
+                """
+            }
+        }
+        stage("cloning the code") {
+            steps {
+                script {
+                    clone("https://github.com/addico786/chattingo.git", "main")
+                }
+            }
+        }
+        stage("building the images") {
+            steps {
+                script {
+                    sh "docker rmi -f frontend:latest || true"
+                    sh "docker rmi -f backend:latest || true"
+                    sh "docker rmi -f mysql:latest || true"
+                    docker_build("frontend", "latest", "frontend/.")
+                    docker_build("backend", "latest", "backend/.")
+                    sh "docker pull mysql:latest"
+                }
+            }
+        }
+        stage("Image Scan"){
+            steps{
+                echo "scanning the images"
+                sh "trivy image frontend:latest"
+                sh "trivy image backend:latest"
+                echo "scanning complete"
+            }
+        }
+        stage("network create") {
+            steps {
+                script {
+                    sh "docker network disconnect chattingo front_container || true"
+                    sh "docker network disconnect chattingo back_container || true"
+                    sh "docker network disconnect chattingo mysql_container || true"
+                    sh "docker network disconnect chattingo nginx_container || true"
+                    sh "docker network rm chattingo"
+                    docker_network("chattingo")
+                }
+            }
+        }
+        stage("running the container") {
+            steps {
+                script {
+                    sh "docker rm -f front_container || true"
+                    sh "docker rm -f back_container || true"
+                    sh "docker rm -f mysql_container || true"
+                    docker_run("3000:3000", "front_container", "chattingo", "frontend:latest")
+                    sh """
+                        docker run -d \
+                          --name mysql_container \
+                          --network chattingo \
+                          -e MYSQL_ROOT_PASSWORD=supersecret \
+                          -e MYSQL_DATABASE=chattingo \
+                          -e MYSQL_USER=adnan \
+                          -e MYSQL_PASSWORD=pass123 \
+                          mysql:latest
+                    """
+                    sh """
+                          docker run -d \
+                          -p 8080:8080 \
+                          --name back_container \
+                          --network chattingo \
+                          -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql_container:3306/chattingo \
+                          -e SPRING_DATASOURCE_USERNAME=adnan \
+                          -e SPRING_DATASOURCE_PASSWORD=pass123 \
+                          -e JWT_SECRET=${JWT_SECRET} \\
+                          backend:latest
+                        """
+                }
+            }
+        }
+        stage(" setting up reverse proxy") {
+            steps {
+                script {
+                    echo "setting up nginx"
+                    sh " sudo systemctl stop nginx || true "
+                    sh "docker rmi -f nginx:latest || true"
+                    docker_build("nginx", "latest", "nginx/.")
+                    sh "docker rm -f nginx_container || true"
+                    sh "docker run -d -p 80:80 --name nginx_container --network chattingo nginx:latest "
+                }
+            }
+        }
+    }
+}
