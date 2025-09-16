@@ -16,7 +16,7 @@ pipeline {
                 """
                 echo "docker installed"
             }
-        }
+        } 
         stage("installing trivy"){
             steps{ 
                 echo "installing trivy" 
